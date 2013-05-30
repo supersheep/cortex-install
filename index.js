@@ -5,6 +5,7 @@ var path = require("path")
     , temp = require("temp")
     , url = require("url")
     , targz = require("tar.gz")
+    , semver = require("semver")
     , _ = require("underscore");
 
 
@@ -35,11 +36,19 @@ Installer.fn.isExplicitVersion = function(version){
     return version.split(".").every(function(sub_version){return !isNaN(+sub_version)})
 }
 
-Installer.fn.getMatchVersion = function(versions,pattern){
-    var version = versions[pattern],
-        choices = Object.keys(versions);
 
-    if(version)return version;
+Installer.fn.getMatchVersion = function(avaibles,pattern){
+    var choices = Object.keys(avaibles);
+
+    var versions = choices.filter(function(choice){
+        return semver.satisfies(choice, pattern);
+    });
+
+    if(versions.length){
+        return avaibles[choices[versions.length-1]];
+    }else{
+        return null;
+    }
 }
 
 Installer.fn.getTarballUrl = function(mod,version,dealTarballUrl){
@@ -57,13 +66,7 @@ Installer.fn.getTarballUrl = function(mod,version,dealTarballUrl){
             if(err){return done(err);}
             done(null,mod_url,res,body);
         });
-    }/*,function(mod_url,res,body,done){
-        if(res.statusCode!=404){return done(null,res,body);}
-        request.get(mod_url.replace("/registry/_design/app/_rewrite",""),function(err,res,body){
-            if(err){return done(err);}
-            done(null,res,body);
-        });
-    }*/,function(mod_url,res,body,done){
+    },function(mod_url,res,body,done){
         // check status code
         if(res.statusCode==404){return done(not_found);}
         done(null,JSON.parse(body));
@@ -121,8 +124,6 @@ Installer.fn.installModule = function (mod,version,moduleInstalled){
             if(err){return done(err);}
             done(null);
         });
-    },function(){
-
     }],function(err){
         // 完成
         if(err){return moduleInstalled(err);}
@@ -133,61 +134,56 @@ Installer.fn.installModule = function (mod,version,moduleInstalled){
 /**
  * 分析依赖，下载
  */
-Installer.fn.intstallDependencies = function(dir,all_installed){
-    var options = this.opts;
+Installer.fn.install = function(mods,all_installed,ret){
+    var self = this,
+        count = mods.length;    
 
-    var packageFile = path.join(dir,"./package.json")
-        , packageJSON = file.readJsonSync(packageFile)
-        , dependencies
-        , mod
-        , tasks = [];
-
-    dependencies = packageJSON[options.key]
-    if(!dependencies){
-        all_installed()
-        return;
-    }
-
+    ret = ret || {};
 
     /**
-     * 安装依赖
+     * {a:1,b:2} -> ["a@1","b@2"]
      */
-    for(mod in dependencies){
-        (function(mod,version){
-            tasks.push(function(one_installed){
-                /**
-                 * 安装单个模块
-                 * @return {[type]} [description]
-                 */
-                installModule(mod,version,function(){
-                    var node_modules_dir = path.join(dir,NODE_MODULE_DIR)
-                        , web_modules_dir = path.join(dir,options.dir)
-                        , module_preinstalled_dir = path.join(node_modules_dir,mod)
-                        , module_dist_dir = path.join(web_modules_dir,mod,version)
-
-                    /**
-                     * 建立文件夹
-                     */
-                    file.mkdirpSync(module_dist_dir);
-
-                    /**
-                     * 拷贝文件
-                     * @return {[type]} [description]
-                     */
-                    file.copy(module_preinstalled_dir,module_dist_dir,function(){
-                        intstallDependencies(module_dist_dir,options,one_installed);
-                        grunt.log.writeln("copy: ".green 
-                            + path.relative(dir,module_preinstalled_dir) 
-                            + " -> " 
-                            + path.relative(dir,module_dist_dir))
-                        file.removeSync(module_preinstalled_dir);
-                    });
-                });
-            });
-        })(mod,dependencies[mod]);
+    function dependenciesToMods(obj){
+        var ret = []
+        for(var i in obj){
+            ret.push(i+"@"+obj[i]);
+        }
+        return ret;
     }
 
-    async.series(tasks,all_installed);
+    function done_one(err,json){
+        if(err){return all_installed(err);}
+        count--;
+        var name = json.name
+            , version = json.version;
+
+        ret[name] = ret[name] || {};
+        ret[name][version] = json;
+        
+        if(count == 0){
+            all_installed(null,ret);
+        }
+    }
+
+    mods.forEach(function(mod,i){
+        var splited = mod.split("@")
+            , name = splited[0]
+            , version = splited[1];
+
+        self.installModule(name,version,function(err,package_json){
+            var dep = package_json[self.opts.key];
+            if(err){return all_installed(err);}
+            
+            if(dep){
+                self.install(dependenciesToMods(dep),function(err,deps){
+                    done_one(err,package_json);
+                },ret);
+            }else{
+                done_one(err,package_json);
+            }
+        });
+
+    });
 }
 
 module.exports = Installer;
