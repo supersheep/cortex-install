@@ -20,12 +20,12 @@ function removeEmptyDir(path){
 }
 
 function Installer(opt){
-    this.opts = _.extend(opt||{}, {
+    this.opts = _.extend({
         dir : "web_modules",
         key : "cortexDependencies",
         registry : "registry.npm.dp",
         prefix : ""
-    });
+    },opt||{});
 }
 
 
