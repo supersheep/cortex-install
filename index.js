@@ -24,7 +24,7 @@ function Installer(opt){
     this.opts = _.extend({
         dir : "web_modules",
         key : "cortexDependencies",
-        registry : "registry.npm.dp",
+        registry : "http://registry.npmjs.org",
         prefix : ""
     },opt||{});
 }
@@ -58,8 +58,15 @@ Installer.fn.getTarballUrl = function(mod,version,dealTarballUrl){
     var not_found = new Error("version "+ version +" not found");
 
     async.waterfall([function(done){
+
+
         // request mod
-        var mod_url = "http://"+opts.registry+"/"+mod;
+        var mod_url = opts.registry + "/" + mod;
+
+        if(mod_url.indexOf('://') === -1){
+            mod_url = 'http://' + mod_url;
+        }
+
         if(explicit){mod_url += ("/" + version);}
         console.log("GET " + mod_url);
         request.get(mod_url,function(err,res,body){
@@ -127,6 +134,7 @@ Installer.fn.installModule = function (mod,version,moduleInstalled){
     }],function(err){
         // 完成
         if(err){return moduleInstalled(err);}
+
         moduleInstalled(null,package_json);
     });
 }
@@ -171,8 +179,9 @@ Installer.fn.install = function(mods,all_installed,ret){
             , version = splited[1];
 
         self.installModule(name,version,function(err,package_json){
-            var dep = package_json[self.opts.key];
             if(err){return all_installed(err);}
+
+            var dep = package_json[self.opts.key];
             
             if(dep){
                 self.install(dependenciesToMods(dep),function(err,deps){
