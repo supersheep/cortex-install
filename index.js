@@ -182,6 +182,7 @@ Installer.fn.install = function(mods,all_installed,ret){
             , version = splited[1];
 
         version = version || "";
+        if(version == "latest"){version = ""}
         self.installModule(name,version,function(err,package_json){
             if(err){return all_installed(err);}
 
