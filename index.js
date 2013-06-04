@@ -33,7 +33,8 @@ function Installer(opt){
 Installer.fn = Installer.prototype;
 
 Installer.fn.isExplicitVersion = function(version){
-    return version.split(".").every(function(sub_version){return !isNaN(+sub_version)})
+    if(!version){return false;}
+    return version.split(".").every(function(sub_version){return !_.isNaN(+sub_version)})
 }
 
 
@@ -55,7 +56,7 @@ Installer.fn.getTarballUrl = function(mod,version,dealTarballUrl){
     var self = this;
     var opts = this.opts;
     var explicit = this.isExplicitVersion(version);
-    var not_found = new Error("version "+ version +" not found");
+    var not_found = new Error(mod + " version "+ version +" not found");
 
     async.waterfall([function(done){
 
@@ -144,8 +145,9 @@ Installer.fn.installModule = function (mod,version,moduleInstalled){
  * 分析依赖，下载
  */
 Installer.fn.install = function(mods,all_installed,ret){
-    var self = this,
-        count = mods.length;    
+    var self = this
+        , count = mods.length
+        , version_map = {};    
 
     ret = ret || {};
 
@@ -169,8 +171,9 @@ Installer.fn.install = function(mods,all_installed,ret){
         ret[name] = ret[name] || {};
         ret[name][version] = json;
         
+        version_map[json.name] = version;
         if(count == 0){
-            all_installed(null,ret);
+            all_installed(null,ret,version_map);
         }
     }
 
@@ -179,11 +182,12 @@ Installer.fn.install = function(mods,all_installed,ret){
             , name = splited[0]
             , version = splited[1];
 
+        version = version || "";
+        if(version == "latest"){version = ""}
         self.installModule(name,version,function(err,package_json){
             if(err){return all_installed(err);}
 
             var dep = package_json[self.opts.key];
-            
             if(dep){
                 self.install(dependenciesToMods(dep),function(err,deps){
                     done_one(err,package_json);
