@@ -23,7 +23,7 @@ function removeEmptyDir(path){
 function Installer(opt){
     this.opts = _.extend({
         dir : "web_modules",
-        key : "cortexDependencies",
+        key : "cortex.dependencies",
         registry : "http://registry.npmjs.org",
         prefix : ""
     },opt||{});
@@ -176,6 +176,19 @@ Installer.fn.install = function(mods,all_installed,ret){
         }
     }
 
+    function parseKey(obj,key){
+        var keys = key.split(".");
+        var ret = obj;
+        keys.forEach(function(key){
+            if(ret && ret[key]){
+                ret = ret[key];
+            }else{
+                ret = null;
+            }
+        });
+        return ret;
+    }
+
     mods.forEach(function(mod,i){
         var splited = mod.split("@")
             , name = splited[0]
@@ -186,7 +199,7 @@ Installer.fn.install = function(mods,all_installed,ret){
         self.installModule(name,version,function(err,package_json){
             if(err){return all_installed(err);}
 
-            var dep = package_json[self.opts.key];
+            var dep = parseKey(package_json,self.opts.key);
             if(dep){
                 self.install(dependenciesToMods(dep),function(err,deps){
                     done_one(err,package_json);
