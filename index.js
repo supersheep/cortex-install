@@ -119,11 +119,12 @@ Installer.fn.installModule = function (mod,version,moduleInstalled){
         request.get(tarball,function(err,res,body){
             if(res.statusCode==404){
                 tarball = tarball.replace("/registry/_design/app/_rewrite","");
-                request.get(tarball).pipe(stream);
-            }else{
-                stream.write(body);
             }
+            
+            // temporarily fix header error
+            request.get(tarball).pipe(stream);
         });
+
     },function(tarpath,done){
         // 解压
         var dest_dir = path.join(self.opts.dir,mod,package_json.version)
